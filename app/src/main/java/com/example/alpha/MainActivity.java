@@ -77,8 +77,11 @@ public class MainActivity extends AppCompatActivity {
     private void updateUI(FirebaseUser user) {
         if (user==null)
             Toast.makeText(this, "We have a problem", Toast.LENGTH_SHORT).show();
-        else
+        else {
             Toast.makeText(this, "Done", Toast.LENGTH_SHORT).show();
+            mail.setText("");
+            password.setText("");
+        }
     }
 
     public void logIn(View view) {
@@ -105,8 +108,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     public void update2(boolean b1){
-        if (b1)
+        if (b1) {
             Toast.makeText(this, "Welcome back", Toast.LENGTH_SHORT).show();
+            mail.setText("");
+            password.setText("");
+        }
         else
             Toast.makeText(this, "We have a problem", Toast.LENGTH_SHORT).show();
     }
