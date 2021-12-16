@@ -4,6 +4,7 @@ import static com.example.alpha.FBref.storageReference;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
@@ -41,7 +42,9 @@ import java.util.UUID;
 public class NewPicture extends AppCompatActivity {
 
     ImageView iV2;
-    byte bb[];
+    Uri photoUri;
+    final int CAMERA_REQUEST = 45;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,49 +54,78 @@ public class NewPicture extends AppCompatActivity {
         iV2= (ImageView) findViewById(R.id.iV2);
     }
     public void choose(View view) {
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        startActivityForResult(intent, 1);
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            // Create the File where the photo should go
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                // Error occurred while creating the File
+            }
+            // Continue only if the File was successfully created
+            if (photoFile != null) {
+                Uri photoURI = FileProvider.getUriForFile(this,
+                        "com.example.android.fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, CAMERA_REQUEST);
+            }
+    }
+
+    private File createImageFile() throws IOException {
+        // Create an image file name
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = File.createTempFile(
+                imageFileName,  /* prefix */
+                ".jpg",         /* suffix */
+                storageDir      /* directory */
+        );
+
+        // Save a file: path for use with ACTION_VIEW intents
+        photoUri = Uri.fromFile(image);
+        return image;
     }
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data)
-    {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode==1 && resultCode==RESULT_OK){
-           onCaptureImage(data);
+        if (resultCode == RESULT_OK && requestCode == CAMERA_REQUEST) {
+            iV2.setImageURI(photoUri);
         }
     }
-    private void onCaptureImage(Intent data){
-        Bitmap thumbnail= (Bitmap) data.getExtras().get("data");
-        ByteArrayOutputStream bytes= new ByteArrayOutputStream();
-        thumbnail.compress(Bitmap.CompressFormat.JPEG,90, bytes);
-        bb=bytes.toByteArray();
-        iV2.setImageBitmap(thumbnail);
-    }
+
     public void upload(View view) {
         ProgressDialog progressDialog = new ProgressDialog(this);
         progressDialog.setTitle("Uploading...");
         progressDialog.show();
-        StorageReference ref = storageReference.child("images/" + UUID.randomUUID().toString());
-        ref.putBytes(bb).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+
+        UploadTask uploadTask = storageReference.child("images/"+ UUID.randomUUID().toString().replaceAll("-", "")).putFile(photoUri);
+        uploadTask.addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception exception) {
+                progressDialog.dismiss();
+                Toast.makeText(NewPicture.this, "field to upload", Toast.LENGTH_SHORT).show();
+                // Handle unsuccessful uploads
+            }
+        }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
             @Override
             public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                // taskSnapshot.getMetadata() contains file metadata such as size, content-type, etc.
+                // ...
                 progressDialog.dismiss();
-                Toast.makeText(NewPicture.this, "Successfully Uploaded", Toast.LENGTH_SHORT).show();
+                Toast.makeText(NewPicture.this, "yes to upload", Toast.LENGTH_SHORT).show();
             }
-        }).addOnFailureListener(new OnFailureListener() {
-            @Override
-            public void onFailure(@NonNull Exception e) {
-                progressDialog.dismiss();
-                Toast.makeText(NewPicture.this, "Failed to upload.", Toast.LENGTH_SHORT).show();
-            }
-        }).addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
-            @Override
-            public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
-                double progress = (100.0 * taskSnapshot.getBytesTransferred() / taskSnapshot.getTotalByteCount());
-                progressDialog.setMessage("Uploaded " + (int)progress + "%");
-            }
-        });
-
+        }).addOnProgressListener(
+                new OnProgressListener<UploadTask.TaskSnapshot>() {
+                    @Override
+                    public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
+                        double progress = (100.0
+                                * taskSnapshot.getBytesTransferred()
+                                / taskSnapshot.getTotalByteCount());
+                        progressDialog.setMessage("Uploaded " + (int)progress + "%");
+                    }
+                });
     }
     public boolean onCreateOptionsMenu(Menu menu){
         getMenuInflater().inflate(R.menu.main, menu);
